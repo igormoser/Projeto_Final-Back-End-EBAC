@@ -1,0 +1,27 @@
+# Ambiente
+.env
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+
+# Testes
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Banco local de testes
+*.db
+*.sqlite3
+
+# IDEs
+.idea/
+.vscode/
+
+# Sistema
+.DS_Store
+Thumbs.db
