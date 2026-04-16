@@ -1,8 +1,8 @@
 # Pokemon API
 
-Projeto final do curso **Back-End Python EBAC**, desenvolvido com **FastAPI**, **SQLAlchemy**, **PostgreSQL**, **Poetry**, **Pytest** e integração com a **PokeAPI**.
+Projeto final do curso **Back-End Python EBAC**, desenvolvido com **FastAPI**, **SQLAlchemy**, **PostgreSQL**, **Poetry**, **Pytest**, **GitHub Actions** e **Render**.
 
-A proposta do projeto é expor uma API própria que **consome dados diretamente da PokeAPI**, adapta o formato de resposta, aplica paginação, mantém cache local em banco relacional e disponibiliza documentação automática, testes, cobertura e pipeline de CI.
+A proposta do projeto é entregar uma API inspirada na **PokeAPI**, consumindo dados diretamente da API oficial, transformando o retorno em um formato padronizado e disponibilizando endpoints documentados, testados, dockerizados e publicados em produção.
 
 ---
 
@@ -15,23 +15,34 @@ A proposta do projeto é expor uma API própria que **consome dados diretamente 
 - Poetry
 - Pytest
 - Pytest-Cov
-- HTTPX
+- Ruff
 - Docker / Docker Compose
-- Podman / Podman Compose
 - GitHub Actions
+- Render
 
 ---
 
 ## Funcionalidades
 
-- Listar pokémons consumindo dados da PokeAPI
-- Buscar pokémon por ID consumindo dados da PokeAPI
-- Paginação com `limit` e `offset`
-- Resposta padronizada com `data` e `pagination`
-- Cache local com PostgreSQL e SQLAlchemy
+- Listar pokémons com paginação
+- Buscar um pokémon por ID
+- Consumir dados diretamente da PokeAPI
+- Cache local com banco relacional usando SQLAlchemy
 - Documentação automática com Swagger e ReDoc
 - Testes automatizados com cobertura
-- Pipeline de CI com GitHub Actions
+- CI com GitHub Actions
+- Deploy em produção no Render
+
+---
+
+## API em produção
+
+- Base URL: `https://pokemon-api-ebac.onrender.com`
+- Health check: `https://pokemon-api-ebac.onrender.com/health`
+- Swagger: `https://pokemon-api-ebac.onrender.com/docs`
+- ReDoc: `https://pokemon-api-ebac.onrender.com/redoc`
+
+> Observação: por estar no plano gratuito do Render, a primeira requisição pode demorar alguns segundos caso a instância esteja inativa.
 
 ---
 
@@ -39,6 +50,9 @@ A proposta do projeto é expor uma API própria que **consome dados diretamente 
 
 ```text
 pokemon-api/
+├── .github/
+│   └── workflows/
+│       └── ci.yml
 ├── app/
 │   ├── api/
 │   │   └── routes/
@@ -65,14 +79,12 @@ pokemon-api/
 │   ├── test_errors.py
 │   ├── test_get_pokemon.py
 │   └── test_list_pokemons.py
-├── .github/
-│   └── workflows/
-│       └── ci.yml
 ├── .env
 ├── .env.example
 ├── .gitignore
 ├── docker-compose.yml
 ├── Dockerfile
+├── poetry.lock
 ├── pyproject.toml
 └── README.md
 ```
@@ -81,41 +93,47 @@ pokemon-api/
 
 ## Endpoints
 
+### Health check
+- `GET /health`
+
 ### Listar pokémons
-- `GET /pokemons?limit=20&offset=0`
+- `GET /pokemons`
+- Query params:
+  - `limit`
+  - `offset`
 
 ### Buscar pokémon por ID
 - `GET /pokemons/{pokemon_id}`
 
-### Health check
-- `GET /health`
-
 ---
 
-## Formato da resposta
+## Formato das respostas
 
-### `GET /pokemons`
+### `GET /pokemons?limit=5&offset=0`
 
 ```json
 {
   "data": [
     {
-      "name": "pikachu",
-      "id": 25,
-      "height": 4,
-      "weight": 60,
-      "types": ["electric"],
+      "name": "bulbasaur",
+      "id": 1,
+      "height": 7,
+      "weight": 69,
+      "types": [
+        "grass",
+        "poison"
+      ],
       "sprites": {
-        "front_default": "https://...",
-        "back_default": "https://..."
+        "front_default": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/1.png",
+        "back_default": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/back/1.png"
       }
     }
   ],
   "pagination": {
-    "total": 1281,
-    "limit": 20,
+    "total": 1350,
+    "limit": 5,
     "offset": 0,
-    "next": "/pokemons?limit=20&offset=20",
+    "next": "/pokemons?limit=5&offset=5",
     "previous": null
   }
 }
@@ -129,10 +147,12 @@ pokemon-api/
   "id": 25,
   "height": 4,
   "weight": 60,
-  "types": ["electric"],
+  "types": [
+    "electric"
+  ],
   "sprites": {
-    "front_default": "https://...",
-    "back_default": "https://..."
+    "front_default": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/25.png",
+    "back_default": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/back/25.png"
   }
 }
 ```
@@ -149,33 +169,40 @@ O projeto utiliza um arquivo `.env`.
 APP_NAME=Pokemon API
 APP_VERSION=2.0.0
 APP_DESCRIPTION=API integradora da PokeAPI para o projeto final EBAC.
-DATABASE_URL=postgresql+psycopg://pokemon_user:pokemon_password@db:5432/pokemon_db
+DATABASE_URL=postgresql+psycopg://pokemon_user:pokemon_password@localhost:5432/pokemon_db
 POKEAPI_BASE_URL=https://pokeapi.co/api/v2
 CACHE_TTL_MINUTES=60
 REQUEST_TIMEOUT_SECONDS=20
 ```
 
-### Observação importante sobre o `DATABASE_URL`
+### Observação sobre o `DATABASE_URL`
 
 Existem dois cenários:
 
-#### 1. Rodando a API localmente com Poetry
-Use `localhost` no host do banco:
+#### 1. Rodando localmente com Poetry
+Use `localhost`:
 
 ```env
 DATABASE_URL=postgresql+psycopg://pokemon_user:pokemon_password@localhost:5432/pokemon_db
 ```
 
-#### 2. Rodando tudo via Docker Compose / Podman Compose
+#### 2. Rodando via Docker Compose
 Use `db`, que é o nome do serviço no compose:
 
 ```env
 DATABASE_URL=postgresql+psycopg://pokemon_user:pokemon_password@db:5432/pokemon_db
 ```
 
+#### 3. Rodando em produção no Render
+Use a connection string do banco Render no formato:
+
+```env
+DATABASE_URL=postgresql+psycopg://USUARIO:SENHA@HOST:5432/NOME_DO_BANCO
+```
+
 ---
 
-## Como preparar o ambiente
+## Como executar localmente com Poetry
 
 ### 1. Clonar o repositório
 
@@ -185,7 +212,6 @@ cd Projeto_Final-Back-End-EBAC
 ```
 
 ### 2. Criar o arquivo `.env`
-Copie o arquivo de exemplo.
 
 #### Linux / macOS
 ```bash
@@ -193,41 +219,38 @@ cp .env.example .env
 ```
 
 #### Windows
-Copie manualmente o arquivo `.env.example` e renomeie para `.env`.
+Copie o arquivo `.env.example` e renomeie para `.env`.
 
 ### 3. Ajustar o `DATABASE_URL`
-- Se for rodar **localmente com Poetry**, troque `db` por `localhost`
-- Se for rodar **via Compose**, mantenha `db`
+- local com Poetry: `localhost`
+- compose: `db`
 
----
-
-## Como executar localmente com Poetry
-
-### 1. Instalar as dependências
+### 4. Instalar dependências
 
 ```bash
 poetry install
 ```
 
-### 2. Subir apenas o banco PostgreSQL
+### 5. Subir o banco PostgreSQL
 
-#### Com Docker
+#### Docker
 ```bash
 docker compose up -d db
 ```
 
-#### Com Podman
+#### Podman
 ```bash
+podman machine start
 podman compose up -d db
 ```
 
-### 3. Rodar a API
+### 6. Rodar a API
 
 ```bash
 poetry run uvicorn app.main:app --reload
 ```
 
-### 4. Acessar a documentação
+### 7. Acessar a documentação
 
 - Swagger: `http://127.0.0.1:8000/docs`
 - ReDoc: `http://127.0.0.1:8000/redoc`
@@ -252,39 +275,64 @@ docker compose down
 
 ---
 
+## Como executar com Podman Compose
+
+```bash
+podman machine start
+podman compose up --build -d
+```
+
+A aplicação ficará disponível em:
+
+- `http://localhost:8000/docs`
+
+Para derrubar os containers:
+
+```bash
+podman compose down
+```
+
+---
+
 ## Como rodar os testes
 
+### Testes
 ```bash
 poetry run pytest
 ```
 
-## Como gerar cobertura
+### Lint
+```bash
+poetry run ruff check .
+```
 
+### Cobertura
 ```bash
 poetry run pytest --cov=app --cov-report=term-missing --cov-report=xml
 ```
 
 ---
 
-## Link de produção
+## CI/CD
 
-Adicione aqui a URL pública após o deploy no Render.
+O projeto possui workflow de CI com **GitHub Actions**, executando:
 
-Exemplo:
+- instalação de dependências
+- lint com Ruff
+- testes automatizados
+- geração de cobertura
 
-```text
-https://seu-servico.onrender.com/docs
-```
+Além disso, o deploy está configurado no **Render**, com atualização a partir da branch principal.
 
 ---
 
 ## Observações finais
 
-- Os dados são extraídos diretamente da **PokeAPI**, conforme o requisito do projeto.  
-- O banco **PostgreSQL** é usado como cache local para reduzir chamadas repetidas à API externa.  
-- O projeto inclui pipeline de CI com GitHub Actions.  
-- A documentação automática do FastAPI está disponível no Swagger e no ReDoc.  
-- O endpoint `/health` pode ser usado como health check no deploy.  
+- Os dados são consumidos diretamente da **PokeAPI**
+- O banco relacional é utilizado como suporte/cache local
+- A API está publicada em produção no Render
+- A documentação está disponível publicamente via Swagger
+- O projeto foi estruturado com separação entre rotas, client externo, services, schemas, models, db e configuração
 
 ---
 
