@@ -1,44 +1,33 @@
-def test_list_pokemons_with_pagination(client, pokemon_payload):
-    bulbasaur = {
-        "nome": "Bulbasaur",
-        "numero_pokedex": 1,
-        "tipo_primario": "Grass",
-        "tipo_secundario": "Poison",
-        "altura": 0.7,
-        "peso": 6.9,
-        "descricao": "Pokémon semente.",
-    }
-
-    client.post("/pokemons", json=bulbasaur)
-    client.post("/pokemons", json=pokemon_payload)
-
-    response = client.get("/pokemons?skip=0&limit=1")
-
-    assert response.status_code == 200
-    data = response.json()
-    assert data["total"] == 2
-    assert data["skip"] == 0
-    assert data["limit"] == 1
-    assert len(data["items"]) == 1
+from app.clients.pokeapi_client import PokeAPIClient
 
 
-def test_list_pokemons_filter_by_type(client, pokemon_payload):
-    client.post("/pokemons", json=pokemon_payload)
+def test_list_pokemons_with_pagination(client, monkeypatch, pokemon_detail_payload):
+    def fake_list(limit: int, offset: int) -> dict:
+        assert limit == 20
+        assert offset == 0
+        return {
+            "count": 1281,
+            "next": "https://pokeapi.co/api/v2/pokemon?limit=20&offset=20",
+            "previous": None,
+            "results": [
+                {"name": "pikachu", "url": "https://pokeapi.co/api/v2/pokemon/25/"},
+            ],
+        }
 
-    squirtle = {
-        "nome": "Squirtle",
-        "numero_pokedex": 7,
-        "tipo_primario": "Water",
-        "tipo_secundario": None,
-        "altura": 0.5,
-        "peso": 9.0,
-        "descricao": "Pokémon tartaruga.",
-    }
-    client.post("/pokemons", json=squirtle)
+    def fake_detail(identifier):
+        return pokemon_detail_payload
 
-    response = client.get("/pokemons?tipo=Electric")
+    monkeypatch.setattr(PokeAPIClient, "fetch_pokemon_list", fake_list)
+    monkeypatch.setattr(PokeAPIClient, "fetch_pokemon_detail", fake_detail)
+
+    response = client.get("/pokemons?limit=20&offset=0")
 
     assert response.status_code == 200
     data = response.json()
-    assert data["total"] == 1
-    assert data["items"][0]["nome"] == "Pikachu"
+    assert len(data["data"]) == 1
+    assert data["data"][0]["name"] == "pikachu"
+    assert data["pagination"]["total"] == 1281
+    assert data["pagination"]["limit"] == 20
+    assert data["pagination"]["offset"] == 0
+    assert data["pagination"]["next"] == "/pokemons?limit=20&offset=20"
+    assert data["pagination"]["previous"] is None

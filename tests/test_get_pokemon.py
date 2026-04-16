@@ -1,17 +1,17 @@
-def test_get_pokemon_by_id_success(client, pokemon_payload):
-    create_response = client.post("/pokemons", json=pokemon_payload)
-    pokemon_id = create_response.json()["id"]
+from app.clients.pokeapi_client import PokeAPIClient
 
-    response = client.get(f"/pokemons/{pokemon_id}")
+
+def test_get_pokemon_by_id_success(client, monkeypatch, pokemon_detail_payload):
+    def fake_detail(identifier):
+        return pokemon_detail_payload
+
+    monkeypatch.setattr(PokeAPIClient, "fetch_pokemon_detail", fake_detail)
+
+    response = client.get("/pokemons/25")
 
     assert response.status_code == 200
     data = response.json()
-    assert data["id"] == pokemon_id
-    assert data["nome"] == "Pikachu"
-
-
-def test_get_pokemon_by_id_not_found(client):
-    response = client.get("/pokemons/999")
-
-    assert response.status_code == 404
-    assert response.json()["detail"] == "Pokémon não encontrado."
+    assert data["id"] == 25
+    assert data["name"] == "pikachu"
+    assert data["types"] == ["electric"]
+    assert data["sprites"]["front_default"] is not None

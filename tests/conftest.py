@@ -1,22 +1,26 @@
+# ruff: noqa: E402
+
 import os
 import sys
 from pathlib import Path
+
+import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-
-import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.pool import StaticPool
-from sqlalchemy.orm import sessionmaker
-
 os.environ["DATABASE_URL"] = "sqlite://"
 os.environ["APP_NAME"] = "Pokemon API - Testes"
-os.environ["APP_VERSION"] = "1.0.0-test"
+os.environ["APP_VERSION"] = "2.0.0-test"
 os.environ["APP_DESCRIPTION"] = "Ambiente de testes"
+os.environ["POKEAPI_BASE_URL"] = "https://pokeapi.co/api/v2"
+os.environ["CACHE_TTL_MINUTES"] = "60"
+os.environ["REQUEST_TIMEOUT_SECONDS"] = "5"
 
 from app.db.base import Base
 from app.db.session import get_db
@@ -54,13 +58,15 @@ def client() -> TestClient:
 
 
 @pytest.fixture
-def pokemon_payload() -> dict:
+def pokemon_detail_payload() -> dict:
     return {
-        "nome": "Pikachu",
-        "numero_pokedex": 25,
-        "tipo_primario": "Electric",
-        "tipo_secundario": None,
-        "altura": 0.4,
-        "peso": 6.0,
-        "descricao": "Pokémon elétrico muito ágil.",
+        "id": 25,
+        "name": "pikachu",
+        "height": 4,
+        "weight": 60,
+        "types": [{"slot": 1, "type": {"name": "electric", "url": "https://pokeapi.co/api/v2/type/13/"}}],
+        "sprites": {
+            "front_default": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/25.png",
+            "back_default": "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/back/25.png",
+        },
     }
