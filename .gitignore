@@ -9,10 +9,11 @@ __pycache__/
 *.pyd
 *.so
 
-# Testes
+# Testes e cobertura
 .pytest_cache/
 .coverage
 htmlcov/
+coverage.xml
 
 # Banco local de testes
 *.db

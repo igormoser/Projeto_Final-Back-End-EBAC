@@ -1,7 +1,7 @@
 [project]
 name = "pokemon-api"
-version = "0.1.0"
-description = "Projeto final do curso Back-End Python EBAC com FastAPI"
+version = "0.2.0"
+description = "API integradora da PokeAPI para o projeto final EBAC"
 authors = [
     {name = "Igor Moser", email = "igormoser@outlook.com"}
 ]
@@ -11,7 +11,8 @@ dependencies = [
     "fastapi[standard] (>=0.128.0,<0.129.0)",
     "sqlalchemy (>=2.0.46,<3.0.0)",
     "psycopg[binary] (>=3.2.12,<4.0.0)",
-    "pydantic-settings (>=2.10.1,<3.0.0)"
+    "pydantic-settings (>=2.10.1,<3.0.0)",
+    "httpx (>=0.28.1,<0.29.0)"
 ]
 
 [tool.poetry]
@@ -19,8 +20,17 @@ package-mode = false
 
 [dependency-groups]
 dev = [
-    "pytest (>=9.0.0,<10.0.0)"
+    "pytest (>=9.0.0,<10.0.0)",
+    "pytest-cov (>=6.1.1,<7.0.0)",
+    "ruff (>=0.13.0,<0.14.0)"
 ]
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

@@ -1,8 +1,8 @@
 # Pokemon API
 
-Projeto final do curso **Back-End Python EBAC**, desenvolvido com **FastAPI**, **SQLAlchemy**, **PostgreSQL**, **Poetry** e **Pytest**.
+Projeto final do curso **Back-End Python EBAC**, desenvolvido com **FastAPI**, **SQLAlchemy**, **PostgreSQL**, **Poetry**, **Pytest** e integração com a **PokeAPI**.
 
-A proposta do projeto é entregar uma API inspirada na **PokéAPI**, com operações completas de **CRUD** para registros de pokémons, documentação automática com FastAPI, testes automatizados e execução local ou via containers.
+A proposta do projeto é expor uma API própria que **consome dados diretamente da PokeAPI**, adapta o formato de resposta, aplica paginação, mantém cache local em banco relacional e disponibiliza documentação automática, testes, cobertura e pipeline de CI.
 
 ---
 
@@ -14,22 +14,24 @@ A proposta do projeto é entregar uma API inspirada na **PokéAPI**, com operaç
 - PostgreSQL
 - Poetry
 - Pytest
+- Pytest-Cov
+- HTTPX
 - Docker / Docker Compose
 - Podman / Podman Compose
+- GitHub Actions
 
 ---
 
 ## Funcionalidades
 
-- Criar pokémons
-- Listar pokémons com paginação
-- Filtrar por nome e tipo
-- Buscar um pokémon por ID
-- Atualizar um pokémon
-- Deletar um pokémon
+- Listar pokémons consumindo dados da PokeAPI
+- Buscar pokémon por ID consumindo dados da PokeAPI
+- Paginação com `limit` e `offset`
+- Resposta padronizada com `data` e `pagination`
+- Cache local com PostgreSQL e SQLAlchemy
 - Documentação automática com Swagger e ReDoc
-- Testes automatizados com Pytest
-- Execução local e via containers
+- Testes automatizados com cobertura
+- Pipeline de CI com GitHub Actions
 
 ---
 
@@ -41,25 +43,31 @@ pokemon-api/
 │   ├── api/
 │   │   └── routes/
 │   │       └── pokemon.py
+│   ├── clients/
+│   │   └── pokeapi_client.py
 │   ├── core/
-│   │   └── config.py
+│   │   ├── config.py
+│   │   └── logging.py
 │   ├── db/
 │   │   ├── base.py
 │   │   └── session.py
 │   ├── models/
-│   │   └── pokemon.py
+│   │   └── pokemon_cache.py
 │   ├── schemas/
 │   │   └── pokemon.py
 │   ├── services/
 │   │   └── pokemon_service.py
+│   ├── exceptions.py
 │   └── main.py
 ├── tests/
 │   ├── conftest.py
-│   ├── test_create_pokemon.py
-│   ├── test_list_pokemons.py
+│   ├── test_cache.py
+│   ├── test_errors.py
 │   ├── test_get_pokemon.py
-│   ├── test_update_pokemon.py
-│   └── test_delete_pokemon.py
+│   └── test_list_pokemons.py
+├── .github/
+│   └── workflows/
+│       └── ci.yml
 ├── .env
 ├── .env.example
 ├── .gitignore
@@ -71,47 +79,63 @@ pokemon-api/
 
 ---
 
-## Modelo do Pokémon
-
-Cada registro possui os seguintes campos:
-
-- `id`
-- `nome`
-- `numero_pokedex`
-- `tipo_primario`
-- `tipo_secundario`
-- `altura`
-- `peso`
-- `descricao`
-- `criado_em`
-- `atualizado_em`
-
----
-
 ## Endpoints
 
-### Criar um pokémon
-- `POST /pokemons`
-
 ### Listar pokémons
-- `GET /pokemons`
-- Query params opcionais:
-  - `skip`
-  - `limit`
-  - `nome`
-  - `tipo`
+- `GET /pokemons?limit=20&offset=0`
 
 ### Buscar pokémon por ID
 - `GET /pokemons/{pokemon_id}`
 
-### Atualizar pokémon
-- `PUT /pokemons/{pokemon_id}`
-
-### Deletar pokémon
-- `DELETE /pokemons/{pokemon_id}`
-
 ### Health check
 - `GET /health`
+
+---
+
+## Formato da resposta
+
+### `GET /pokemons`
+
+```json
+{
+  "data": [
+    {
+      "name": "pikachu",
+      "id": 25,
+      "height": 4,
+      "weight": 60,
+      "types": ["electric"],
+      "sprites": {
+        "front_default": "https://...",
+        "back_default": "https://..."
+      }
+    }
+  ],
+  "pagination": {
+    "total": 1281,
+    "limit": 20,
+    "offset": 0,
+    "next": "/pokemons?limit=20&offset=20",
+    "previous": null
+  }
+}
+```
+
+### `GET /pokemons/25`
+
+```json
+{
+  "name": "pikachu",
+  "id": 25,
+  "height": 4,
+  "weight": 60,
+  "types": ["electric"],
+  "sprites": {
+    "front_default": "https://...",
+    "back_default": "https://..."
+  }
+}
+```
 
 ---
 
@@ -123,9 +147,12 @@ O projeto utiliza um arquivo `.env`.
 
 ```env
 APP_NAME=Pokemon API
-APP_VERSION=1.0.0
-APP_DESCRIPTION=API final do curso EBAC inspirada na PokéAPI.
+APP_VERSION=2.0.0
+APP_DESCRIPTION=API integradora da PokeAPI para o projeto final EBAC.
 DATABASE_URL=postgresql+psycopg://pokemon_user:pokemon_password@db:5432/pokemon_db
+POKEAPI_BASE_URL=https://pokeapi.co/api/v2
+CACHE_TTL_MINUTES=60
+REQUEST_TIMEOUT_SECONDS=20
 ```
 
 ### Observação importante sobre o `DATABASE_URL`
@@ -153,12 +180,12 @@ DATABASE_URL=postgresql+psycopg://pokemon_user:pokemon_password@db:5432/pokemon_
 ### 1. Clonar o repositório
 
 ```bash
-git clone <https://github.com/igormoser/Projeto_Final-Back-End-EBAC.git>
-cd pokemon-api
+git clone https://github.com/igormoser/Projeto_Final-Back-End-EBAC.git
+cd Projeto_Final-Back-End-EBAC
 ```
 
 ### 2. Criar o arquivo `.env`
-Copie o arquivo de exemplo:
+Copie o arquivo de exemplo.
 
 #### Linux / macOS
 ```bash
@@ -225,87 +252,39 @@ docker compose down
 
 ---
 
-## Como executar com Podman Compose
-
-### 1. Iniciar a machine do Podman
-Depois de ligar o computador, normalmente é necessário iniciar a machine:
-
-```bash
-podman machine start
-```
-
-### 2. Subir os containers
-
-```bash
-podman compose up --build -d
-```
-
-Se o seu ambiente não reconhecer `podman compose`, use:
-
-```bash
-podman-compose up --build -d
-```
-
-A aplicação ficará disponível em:
-
-- `http://localhost:8000/docs`
-
-Para derrubar os containers:
-
-```bash
-podman compose down
-```
-
-ou:
-
-```bash
-podman-compose down
-```
-
----
-
 ## Como rodar os testes
 
 ```bash
 poetry run pytest
 ```
 
----
+## Como gerar cobertura
 
-## Exemplo de payload para criação
-
-```json
-{
-  "nome": "Pikachu",
-  "numero_pokedex": 25,
-  "tipo_primario": "Electric",
-  "tipo_secundario": null,
-  "altura": 0.4,
-  "peso": 6.0,
-  "descricao": "Pokémon elétrico muito ágil."
-}
+```bash
+poetry run pytest --cov=app --cov-report=term-missing --cov-report=xml
 ```
 
 ---
 
-## Validações do projeto
+## Link de produção
 
-O projeto foi validado com:
+Adicione aqui a URL pública após o deploy no Render.
 
-- testes automatizados com `pytest`
-- execução da API com `uvicorn`
-- documentação interativa no Swagger
-- testes manuais de CRUD no `/docs`
+Exemplo:
+
+```text
+https://seu-servico.onrender.com/docs
+```
 
 ---
 
 ## Observações finais
 
-- O banco principal do projeto é **PostgreSQL**
-- Os testes utilizam **SQLite** isolado
-- As tabelas são criadas automaticamente na inicialização da aplicação
-- A listagem de pokémons possui paginação e filtros básicos
-- O projeto foi estruturado para manter separação entre rotas, schemas, models, services e configuração
+- Os dados são extraídos diretamente da **PokeAPI**, conforme o requisito do projeto.  
+- O banco **PostgreSQL** é usado como cache local para reduzir chamadas repetidas à API externa.  
+- O projeto inclui pipeline de CI com GitHub Actions.  
+- A documentação automática do FastAPI está disponível no Swagger e no ReDoc.  
+- O endpoint `/health` pode ser usado como health check no deploy.  
 
 ---
 
