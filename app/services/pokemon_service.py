@@ -3,22 +3,49 @@ import logging
 from datetime import UTC, datetime, timedelta
 from urllib.parse import parse_qs, urlparse
 
+from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.clients.pokeapi_client import PokeAPIClient
 from app.core.config import settings
 from app.models.pokemon_cache import PokemonCache
+from app.models.pokemon_custom import PokemonCustom
 from app.schemas.pokemon import (
     PaginationResponse,
+    PokemonCreate,
     PokemonListResponse,
     PokemonResponse,
     PokemonSprites,
+    PokemonUpdate,
 )
 
 logger = logging.getLogger(__name__)
 
 
 class PokemonService:
+    @staticmethod
+    def create_pokemon(db: Session, payload: PokemonCreate) -> PokemonResponse:
+        existing = db.query(PokemonCustom).filter(PokemonCustom.id == payload.id).first()
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Já existe um pokémon local com esse ID.",
+            )
+
+        pokemon = PokemonCustom(
+            id=payload.id,
+            name=payload.name,
+            height=payload.height,
+            weight=payload.weight,
+            types_json=json.dumps(payload.types, ensure_ascii=False),
+            front_default=payload.sprites.front_default,
+            back_default=payload.sprites.back_default,
+        )
+        db.add(pokemon)
+        db.commit()
+        db.refresh(pokemon)
+        return PokemonService._custom_to_response(pokemon)
+
     @staticmethod
     def list_pokemons(db: Session, *, limit: int, offset: int) -> PokemonListResponse:
         logger.info("event=list_pokemons limit=%s offset=%s", limit, offset)
@@ -42,7 +69,47 @@ class PokemonService:
     @staticmethod
     def get_pokemon_by_id(db: Session, pokemon_id: int) -> PokemonResponse:
         logger.info("event=get_pokemon_by_id pokemon_id=%s", pokemon_id)
+
+        local = db.query(PokemonCustom).filter(PokemonCustom.id == pokemon_id).first()
+        if local is not None:
+            logger.info("event=local_hit pokemon_id=%s", pokemon_id)
+            return PokemonService._custom_to_response(local)
+
         return PokemonService._get_pokemon_response(db, pokemon_id)
+
+    @staticmethod
+    def update_pokemon(db: Session, pokemon_id: int, payload: PokemonUpdate) -> PokemonResponse:
+        pokemon = db.query(PokemonCustom).filter(PokemonCustom.id == pokemon_id).first()
+        if pokemon is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Pokémon local não encontrado para atualização.",
+            )
+
+        pokemon.name = payload.name
+        pokemon.height = payload.height
+        pokemon.weight = payload.weight
+        pokemon.types_json = json.dumps(payload.types, ensure_ascii=False)
+        pokemon.front_default = payload.sprites.front_default
+        pokemon.back_default = payload.sprites.back_default
+
+        db.commit()
+        db.refresh(pokemon)
+        return PokemonService._custom_to_response(pokemon)
+
+    @staticmethod
+    def delete_pokemon(db: Session, pokemon_id: int) -> PokemonResponse:
+        pokemon = db.query(PokemonCustom).filter(PokemonCustom.id == pokemon_id).first()
+        if pokemon is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Pokémon local não encontrado para exclusão.",
+            )
+
+        response = PokemonService._custom_to_response(pokemon)
+        db.delete(pokemon)
+        db.commit()
+        return response
 
     @staticmethod
     def _get_pokemon_response(db: Session, identifier: int | str) -> PokemonResponse:
@@ -108,6 +175,7 @@ class PokemonService:
         expiration = fetched_at + timedelta(minutes=settings.cache_ttl_minutes)
         if expiration < datetime.now(UTC):
             return None
+
         return cache
 
     @staticmethod
@@ -140,3 +208,17 @@ class PokemonService:
             return int(identifier)
         except (TypeError, ValueError):
             return None
+
+    @staticmethod
+    def _custom_to_response(pokemon: PokemonCustom) -> PokemonResponse:
+        return PokemonResponse(
+            name=pokemon.name,
+            id=pokemon.id,
+            height=pokemon.height,
+            weight=pokemon.weight,
+            types=json.loads(pokemon.types_json),
+            sprites=PokemonSprites(
+                front_default=pokemon.front_default,
+                back_default=pokemon.back_default,
+            ),
+        )

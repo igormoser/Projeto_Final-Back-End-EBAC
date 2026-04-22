@@ -28,3 +28,24 @@ class PaginationResponse(BaseModel):
 class PokemonListResponse(BaseModel):
     data: list[PokemonResponse]
     pagination: PaginationResponse
+
+class PokemonCreate(BaseModel):
+    id: int = Field(ge=1)
+    name: str = Field(min_length=1)
+    height: int = Field(ge=0)
+    weight: int = Field(ge=0)
+    types: list[str] = Field(min_length=1)
+    sprites: PokemonSprites
+
+
+class PokemonUpdate(BaseModel):
+    name: str = Field(min_length=1)
+    height: int = Field(ge=0)
+    weight: int = Field(ge=0)
+    types: list[str] = Field(min_length=1)
+    sprites: PokemonSprites
+
+
+class PokemonDeleteResponse(BaseModel):
+    message: str
+    pokemon: PokemonResponse

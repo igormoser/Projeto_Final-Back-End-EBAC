@@ -7,7 +7,8 @@ from app.core.logging import configure_logging
 from app.db.base import Base
 from app.db.session import engine
 from app.exceptions import PokemonNotFoundError, UpstreamServiceError
-from app.models.pokemon_cache import PokemonCache  # noqa: F401
+from app.models.pokemon_cache import PokemonCache  # noqa: F401  # noqa: F401
+from app.models.pokemon_custom import PokemonCustom  # noqa: F401
 
 configure_logging()
 Base.metadata.create_all(bind=engine)
